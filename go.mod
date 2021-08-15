@@ -3,6 +3,7 @@ module example.com/hello
 go 1.16
 
 require (
+	github.com/go-redis/redis v6.15.9+incompatible // indirect
 	github.com/google/renameio v0.1.0 // indirect
 	github.com/gorilla/mux v1.8.0 // indirect
 	github.com/kisielk/gotool v1.0.0 // indirect
