@@ -20,6 +20,8 @@ func main() {
 	r.HandleFunc("/", indexGetHandler).Methods("GET")
 	r.HandleFunc("/", indexPostHandler).Methods("POST")
 
+	fs := http.FileServer(http.Dir("./static/"))		//Directory to server files
+	r.PathPrefix("/static/").Handler(http.StripPrefix("/static/", fs)) 			// to use these files server for all paths that start with the static prefix. 
 	http.Handle("/", r)
 	http.ListenAndServe(":8080", nil)
 }
