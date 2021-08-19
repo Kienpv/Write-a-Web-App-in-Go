@@ -49,7 +49,9 @@ func indexGetHandler(w http.ResponseWriter, r *http.Request) {
 	// add "context" to the import list, then in the indexGetHandler add this:
 	// ctx := context.TODO()
 	// comments, err := client.LRange(ctx, "comments", 0, 10).Result()
-	if (err != nil) { 
+	if err != nil { 
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte("Internal server error"))
 		return 
 	}
 	templates.ExecuteTemplate(w, "index.html", comment)
@@ -58,7 +60,12 @@ func indexGetHandler(w http.ResponseWriter, r *http.Request) {
 func indexPostHandler(w http.ResponseWriter, r *http.Request) {
 	r.ParseForm()
 	comment := r.PostForm.Get("comment_text")
-	client.LPush("comments", comment)
+	err := client.LPush("comments", comment).Err()
+	if err != nil { 
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte("Internal server error"))
+		return 
+	}
 	http.Redirect(w, r, "/", 302)		
 }
 
@@ -70,12 +77,20 @@ func loginPostHandler(w http.ResponseWriter, r *http.Request) {
 	r.ParseForm()
 	username := r.PostForm.Get("username")
 	hash, err := client.Get("user:" + username).Bytes()
-	if err != nil {
+	if err == redis.Nil {
+		templates.ExecuteTemplate(w, "login.html", "Unknown user")
 		return
 	}
+	if err != nil { 
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte("Internal server error"))
+		return 
+	}
+
 	password := r.PostForm.Get("password")
 	err = bcrypt.CompareHashAndPassword(hash, []byte(password))
 	if err != nil {
+		templates.ExecuteTemplate(w, "login.html", "Invalid password")
 		return
 	}
 	
@@ -108,9 +123,16 @@ func registerPostHandler(w http.ResponseWriter, r *http.Request) {
 	password := r.PostForm.Get("password")
 	cost := bcrypt.DefaultCost
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), cost)
-	if err != nil {
-		return
+	if err != nil { 
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte("Internal server error"))
+		return 
 	}
-	client.Set("user:" + username, hash, 0)
+	err = client.Set("user:" + username, hash, 0).Err()
+	if err != nil { 
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte("Internal server error"))
+		return 
+	}
 	http.Redirect(w, r, "/login", 302)
 }
