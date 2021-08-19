@@ -10,7 +10,7 @@ import (
 )
 
 var client *redis.Client
-var store = sessions.NewCookieStore([]byte(""))		// create an object to configure how sessions are stored
+var store = sessions.NewCookieStore([]byte("k3y_5ecreT"))		// create an object to configure how sessions are stored
 													// byte array used as a key to sign our cookies - any data we store in our sessions
 													// gorilla sessions package ensure that our application only accept cookies were signed with our key
 var templates *template.Template
@@ -22,8 +22,8 @@ func main() {
 	})
 	templates = template.Must(template.ParseGlob("templates/*.html"))
 	r := mux.NewRouter()
-	r.HandleFunc("/", indexGetHandler).Methods("GET")
-	r.HandleFunc("/", indexPostHandler).Methods("POST")
+	r.HandleFunc("/", AuthRequired(indexGetHandler)).Methods("GET")
+	r.HandleFunc("/", AuthRequired(indexPostHandler)).Methods("POST")
 	r.HandleFunc("/login", loginGetHandler).Methods("GET")
 	r.HandleFunc("/login", loginPostHandler).Methods("POST")
 	r.HandleFunc("/register", registerGetHandler).Methods("GET")
@@ -36,14 +36,19 @@ func main() {
 	http.ListenAndServe(":8080", nil)
 }
 
-func indexGetHandler(w http.ResponseWriter, r *http.Request) {
-	session, _ := store.Get(r, "session")
-	_, ok := session.Values["username"]
-	if !ok {
-		http.Redirect(w, r, "/login", 302)
-		return
+func AuthRequired(handler http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		session, _ := store.Get(r, "session")
+		_, ok := session.Values["username"]
+		if !ok {
+			http.Redirect(w, r, "/login", 302)
+			return
+		}
+		handler.ServeHTTP(w, r)
 	}
+}
 
+func indexGetHandler(w http.ResponseWriter, r *http.Request) {
 	comment, err := client.LRange("comments", 0, 10).Result()
 	// due to some update -> not enough arguments in call to client.cmdable.LRange, we need to change
 	// add "context" to the import list, then in the indexGetHandler add this:
