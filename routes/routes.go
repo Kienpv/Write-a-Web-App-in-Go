@@ -25,7 +25,7 @@ func NewRoute() *mux.Router{
 }
 
 func indexGetHandler(w http.ResponseWriter, r *http.Request) {
-	comment, err := models.GetComments()
+	update, err := models.GetUpdates()
 	// due to some update -> not enough arguments in call to client.cmdable.LRange, we need to change
 	// add "context" to the import list, then in the indexGetHandler add this:
 	// ctx := context.TODO()
@@ -35,13 +35,21 @@ func indexGetHandler(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("Internal server error"))
 		return 
 	}
-	utils.ExecuteTemplate(w, "index.html", comment)
+	utils.ExecuteTemplate(w, "index.html", update)
 }
 
 func indexPostHandler(w http.ResponseWriter, r *http.Request) {
+	session, _ := sessions.Store.Get(r, "session")
+	userId, ok := session.Values["user_id"].(int64)
+	if !ok {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte("Internal server error"))
+		return 
+	}
 	r.ParseForm()
-	comment := r.PostForm.Get("comment_text")
-	err := models.PostComments(comment)
+	body := r.PostForm.Get("update")
+	
+	err := models.PostUpdates(userId, body)
 	if err != nil { 
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte("Internal server error"))
@@ -58,7 +66,7 @@ func loginPostHandler(w http.ResponseWriter, r *http.Request) {
 	r.ParseForm()
 	username := r.PostForm.Get("username")
 	password := r.PostForm.Get("password")
-	err := models.AuthenticateUser(username, password)
+	user, err := models.AuthenticateUser(username, password)
 
 	if err != nil {
 		switch err {
@@ -74,7 +82,12 @@ func loginPostHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	
 	session, _ := sessions.Store.Get(r, "session")
-	session.Values["username"] = username
+	session.Values["user_id"], err = user.GetUserId()
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte("Internal server error"))
+		return
+	}
 	session.Save(r, w)
 	http.Redirect(w, r, "/", 302)		
 }
