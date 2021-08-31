@@ -21,11 +21,13 @@ func NewRoute() *mux.Router{
 
 	fs := http.FileServer(http.Dir("./static/"))		//Directory to server files
 	r.PathPrefix("/static/").Handler(http.StripPrefix("/static/", fs)) 			// to use these files server for all paths that start with the static prefix.
+	
+	r.HandleFunc("/{username}", midleware.AuthRequired(userGetHandler)).Methods("GET")
 	return r;
 }
 
 func indexGetHandler(w http.ResponseWriter, r *http.Request) {
-	update, err := models.GetUpdates()
+	update, err := models.GetAllUpdates()
 	// due to some update -> not enough arguments in call to client.cmdable.LRange, we need to change
 	// add "context" to the import list, then in the indexGetHandler add this:
 	// ctx := context.TODO()
@@ -35,7 +37,13 @@ func indexGetHandler(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("Internal server error"))
 		return 
 	}
-	utils.ExecuteTemplate(w, "index.html", update)
+	utils.ExecuteTemplate(w, "index.html", struct {
+		Tittle string
+		Updates []*models.Update	
+	} {
+		Tittle: "all update",
+		Updates: update,
+	})
 }
 
 func indexPostHandler(w http.ResponseWriter, r *http.Request) {
@@ -56,6 +64,36 @@ func indexPostHandler(w http.ResponseWriter, r *http.Request) {
 		return 
 	}
 	http.Redirect(w, r, "/", 302)		
+}
+
+func userGetHandler(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	username := vars["username"]
+	user, err := models.GetUserByUsername(username)
+	if err != nil { 
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte("Internal server error"))
+		return 
+	}
+	userId, err := user.GetUserId()
+	if err != nil { 
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte("Internal server error"))
+		return 
+	}
+	update, err := models.GetUpdates(userId)
+	if err != nil { 
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte("Internal server error"))
+		return 
+	}
+	utils.ExecuteTemplate(w, "index.html",  struct {
+		Tittle string
+		Updates []*models.Update	
+	} {
+		Tittle: username,
+		Updates: update,
+	})
 }
 
 func loginGetHandler(w http.ResponseWriter, r *http.Request) {
