@@ -1,4 +1,4 @@
-module example.com/hello
+module github.com/Write-a-Web-App-in-Go
 
 go 1.16
 

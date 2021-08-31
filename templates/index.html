@@ -1,19 +1,24 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <title>Comments</title>
+    <title>{{ .Tittle }}</title>
     <link rel="stylesheet" type="text/css" href="./static/index.css">
 </head>
 <body>
-    <h1>Comments</h1>
+    <h1>{{ .Tittle }}</h1>
     <form method="POST">
-        <textarea name="comment_text"></textarea>
+        <textarea name="update"></textarea>
         <div>
-            <button type="submit">Post comment</button>
+            <button type="submit">Post updates</button>
         </div>
     </form>
-    {{ range . }}
-    <div>{{ . }}</div>
+    {{ range .Updates }}
+    <div>
+        <div>
+            <strong> {{ .GetUser.GetUserName }} wrote: </strong> 
+        </div>  
+        <div>{{ .GetBody }}</div>
+    </div>
     {{ end }}
 </body>
 </html>
