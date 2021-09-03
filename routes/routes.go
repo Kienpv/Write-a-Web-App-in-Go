@@ -15,6 +15,7 @@ func NewRoute() *mux.Router{
 	r.HandleFunc("/", midleware.AuthRequired(indexPostHandler)).Methods("POST")
 	r.HandleFunc("/login", loginGetHandler).Methods("GET")
 	r.HandleFunc("/login", loginPostHandler).Methods("POST")
+	r.HandleFunc("/logout", logoutGetHandler).Methods("GET")
 	r.HandleFunc("/register", registerGetHandler).Methods("GET")
 	r.HandleFunc("/register", registerPostHandler).Methods("POST")
 	// r.HandleFunc("/test-login", test_loginGetHandler).Methods("GET")
@@ -39,10 +40,12 @@ func indexGetHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	utils.ExecuteTemplate(w, "index.html", struct {
 		Tittle string
-		Updates []*models.Update	
+		Updates []*models.Update
+		DisplayForm bool
 	} {
 		Tittle: "all update",
 		Updates: update,
+		DisplayForm: true,
 	})
 }
 
@@ -50,8 +53,7 @@ func indexPostHandler(w http.ResponseWriter, r *http.Request) {
 	session, _ := sessions.Store.Get(r, "session")
 	userId, ok := session.Values["user_id"].(int64)
 	if !ok {
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte("Internal server error"))
+		utils.InternalServerError(w)
 		return 
 	}
 	r.ParseForm()
@@ -59,40 +61,44 @@ func indexPostHandler(w http.ResponseWriter, r *http.Request) {
 	
 	err := models.PostUpdates(userId, body)
 	if err != nil { 
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte("Internal server error"))
+		utils.InternalServerError(w)
 		return 
 	}
 	http.Redirect(w, r, "/", 302)		
 }
 
 func userGetHandler(w http.ResponseWriter, r *http.Request) {
+	session, _ := sessions.Store.Get(r, "session")
+	current_userId, ok := session.Values["user_id"].(int64)
+	if !ok {
+		utils.InternalServerError(w)
+		return 
+	}
 	vars := mux.Vars(r)
 	username := vars["username"]
 	user, err := models.GetUserByUsername(username)
 	if err != nil { 
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte("Internal server error"))
+		utils.InternalServerError(w)
 		return 
 	}
 	userId, err := user.GetUserId()
 	if err != nil { 
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte("Internal server error"))
+		utils.InternalServerError(w)
 		return 
 	}
 	update, err := models.GetUpdates(userId)
 	if err != nil { 
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte("Internal server error"))
+		utils.InternalServerError(w)
 		return 
 	}
 	utils.ExecuteTemplate(w, "index.html",  struct {
 		Tittle string
-		Updates []*models.Update	
+		Updates []*models.Update
+		DisplayForm bool
 	} {
 		Tittle: username,
 		Updates: update,
+		DisplayForm: current_userId == userId,
 	})
 }
 
@@ -113,8 +119,7 @@ func loginPostHandler(w http.ResponseWriter, r *http.Request) {
 		case models.ErrInvalidLogin:
 			utils.ExecuteTemplate(w, "login.html", "Invalid password")
 		default:
-			w.WriteHeader(http.StatusInternalServerError)
-			w.Write([]byte("Internal server error"))
+			utils.InternalServerError(w)
 		}
 		return 
 	}
@@ -122,12 +127,18 @@ func loginPostHandler(w http.ResponseWriter, r *http.Request) {
 	session, _ := sessions.Store.Get(r, "session")
 	session.Values["user_id"], err = user.GetUserId()
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte("Internal server error"))
+		utils.InternalServerError(w)
 		return
 	}
 	session.Save(r, w)
 	http.Redirect(w, r, "/", 302)		
+}
+
+func logoutGetHandler(w http.ResponseWriter, r *http.Request) {
+	session, _ := sessions.Store.Get(r, "session")
+	delete(session.Values, "user_id")
+	session.Save(r, w)
+	http.Redirect(w, r, "/login", 302)	
 }
 
 func registerGetHandler(w http.ResponseWriter, r *http.Request) {
@@ -139,9 +150,11 @@ func registerPostHandler(w http.ResponseWriter, r *http.Request) {
 	username := r.PostForm.Get("username")
 	password := r.PostForm.Get("password")	
 	err := models.RegisterUser(username, password)
-	if err != nil { 
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte("Internal server error"))
+	if err == models.ErrUsernameTaken {
+		utils.ExecuteTemplate(w, "register.html", "username taken")
+		return
+	} else if err != nil { 
+		utils.InternalServerError(w)
 		return 
 	}
 	http.Redirect(w, r, "/login", 302)

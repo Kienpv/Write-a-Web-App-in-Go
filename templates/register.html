@@ -3,6 +3,9 @@
         <title>Register</title>
     </head>
     <body>
+        {{ if . }}      <!-- if there's any data we're passing  -->
+            <div class="error">{{ . }}</div>
+        {{ end }}
         <form method="POST">
             <div>Username: <input name="username"></div>
             <div>Password: <input name="password"></div>
